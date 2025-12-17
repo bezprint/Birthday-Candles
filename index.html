@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Happy Birthday Mom!</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; background: radial-gradient(ellipse at center, #1a1a1a 0%, #000 85%);
+            overflow: hidden; font-family: sans-serif; font-weight: bold;
+            position: relative; -webkit-user-select: none; user-select: none; touch-action: manipulation;
+        }
+
+        #loader {
+            position: fixed; color: #ffff00; font-size: 18px; letter-spacing: 2px;
+            z-index: 9999; text-transform: uppercase;
+        }
+
+        .candles-container {
+            position: absolute; top: 50%; left: 50%;
+            width: 600px; height: 400px; z-index: 5;
+            transform: translate(-50%, -50%) rotateX(60deg) rotateZ(0deg); 
+            transform-style: preserve-3d; perspective: 1200px;
+            visibility: hidden;
+        }
+
+        @media (max-width: 480px) { .candles-container { transform: translate(-50%, -50%) rotateX(60deg) rotateZ(0deg) scale(0.65); } }
+
+        .candle { position: absolute; transform-style: preserve-3d; transform: rotateX(-60deg); }
+        .candle-body {
+            width: 100%; height: 100%; border-radius: 4px;
+            background: linear-gradient(135deg, #d4c5b0 0%, #fffaf0 30%, #f7eddf 100%);
+            box-shadow: inset -2px -2px 8px rgba(0,0,0,0.2), 3px 6px 12px rgba(0,0,0,0.7);
+            position: relative;
+        }
+        .candle.lit .candle-body { box-shadow: 0 0 25px 4px rgba(255, 140, 0, 0.3), 3px 6px 15px rgba(0,0,0,0.8); }
+
+        .candle-top {
+            position: absolute; top: -2px; left: 50%; transform: translateX(-50%);
+            width: 90%; height: 8px; border-radius: 50%;
+            background: radial-gradient(ellipse at center, #fff8e1 0%, #d4c5b0 100%);
+        }
+
+        .wick {
+            position: absolute; top: -6px; left: 50%; transform: translateX(-50%);
+            width: 2px; height: 8px; background: #2a1f16;
+        }
+
+        .flame {
+            position: absolute; top: -20px; left: 50%; transform: translateX(-50%);
+            width: 8px; height: 20px; opacity: 0; pointer-events: none;
+        }
+        .candle.lit .flame { opacity: 1; animation: flicker infinite alternate ease-in-out; }
+
+        @keyframes flicker {
+            0% { transform: translateX(-50%) scale(0.9, 1.1) rotate(-2deg); }
+            100% { transform: translateX(-50%) scale(1.1, 0.9) rotate(2deg); filter: brightness(1.3); }
+        }
+
+        .flame-body {
+            width: 100%; height: 100%; background: linear-gradient(to top, #ff4500, #ffa500, #ffff00);
+            border-radius: 50% 50% 20% 20% / 80% 80% 20% 20%;
+        }
+
+        .birthday-message {
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%) scale(0);
+            z-index: 1000; text-align: center; opacity: 0; transition: 0.8s cubic-bezier(0.17, 0.88, 0.32, 1.27);
+            pointer-events: none; width: 100%;
+        }
+        .birthday-message.show { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        .birthday-message h1 {
+            font-size: clamp(60px, 15vw, 120px);
+            background: linear-gradient(to bottom, #ffff00, #fff, #ffff00);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            animation: text-glow-pulse 2s infinite alternate ease-in-out;
+        }
+
+        @keyframes text-glow-pulse {
+            0% { filter: drop-shadow(0 0 15px rgba(255, 255, 0, 0.5)); }
+            100% { filter: drop-shadow(0 0 40px rgba(255, 255, 0, 1)); }
+        }
+
+        .instructions { position: fixed; bottom: 30px; width: 100%; text-align: center; color: #ffff00; opacity: 0.6; letter-spacing: 2px; }
+
+        /* Confetti and Firework layer */
+        .confetti, .firework { position: fixed; z-index: 2000; pointer-events: none; }
+        
+        .confetti { 
+            top: -50px; /* Start well above the screen */
+            animation: fall linear forwards; 
+        }
+
+        .firework { width: 6px; height: 6px; border-radius: 50%; animation: explode-mega 1.2s ease-out forwards; }
+        
+        @keyframes explode-mega { 
+            0% { transform: translate(0,0) scale(1); opacity: 1; } 
+            100% { transform: translate(var(--x), var(--y)) scale(0); opacity: 0; } 
+        }
+        @keyframes fall { to { transform: translateY(120vh) rotate(720deg); } }
+    </style>
+</head>
+<body>
+    <div id="loader">Loading...</div>
+    <div class="candles-container" id="candlesContainer"></div>
+    <div class="birthday-message" id="birthdayMessage"><h1>Happy<br>Birthday<br>Mom!</h1></div>
+    <div class="instructions" id="instructions">Tap to blow out the candles</div>
+
+    <script>
+        var container = document.getElementById('candlesContainer');
+        var message = document.getElementById('birthdayMessage');
+        var isLit = true;
+        var timeouts = [];
+        var lastTap = 0;
+        var tapCount = 0;
+
+        window.onload = function() {
+            document.getElementById('loader').style.display = 'none';
+            container.style.visibility = 'visible';
+            init();
+        };
+
+        function init() {
+            var rings = [{c:32, rx:280, ry:180}, {c:20, rx:180, ry:110}, {c:12, rx:80, ry:50}];
+            var posArr = [];
+            for (var r=0; r<rings.length; r++) {
+                for (var i=0; i<rings[r].c; i++) {
+                    var a = (i/rings[r].c) * Math.PI * 2;
+                    posArr.push({x: 300 + Math.cos(a)*rings[r].rx, y: 200 + Math.sin(a)*rings[r].ry, z: Math.random()*10, s: 24+Math.random()*4});
+                }
+            }
+            posArr.sort(function(a,b){return a.y - b.y});
+            for (var j=0; j<posArr.length; j++) {
+                var p = posArr[j];
+                var c = document.createElement('div');
+                c.className = 'candle lit';
+                c.style.cssText = 'left:'+p.x+'px;top:'+p.y+'px;width:'+p.s+'px;height:'+(p.s*2.5)+'px;transform:rotateX(-60deg) translateZ('+p.z+'px)';
+                c.innerHTML = '<div class="candle-body"><div class="candle-top"></div><div class="wick"></div><div class="flame" style="animation-duration:'+(0.3+Math.random()*0.5)+'s;animation-delay:-'+(Math.random()*2)+'s"><div class="flame-body"></div></div></div>';
+                container.appendChild(c);
+            }
+        }
+
+        function toggle() {
+            var candles = Array.prototype.slice.call(document.querySelectorAll('.candle')).sort(function(a,b){return parseFloat(b.style.top)-parseFloat(a.style.top)});
+            if (isLit) {
+                isLit = false;
+                for (var i=0; i<candles.length; i++) {
+                    (function(idx){ timeouts.push(setTimeout(function(){candles[idx].classList.remove('lit')}, idx*12)) })(i);
+                }
+                setTimeout(function(){ message.classList.add('show'); spawn(400, false); }, 1000);
+            } else {
+                isLit = true;
+                message.classList.remove('show');
+                for (var k=0; k<candles.length; k++) {
+                    (function(idx){ timeouts.push(setTimeout(function(){candles[idx].classList.add('lit')}, idx*8)) })(k);
+                }
+            }
+        }
+
+        function spawn(count, mega) {
+            var colors = mega ? ['#fff','#ffff00','#fff700'] : ['#ffff00','#ffd700','#ffffff','#ff4500'];
+            var actualCount = mega ? count * 3 : count;
+
+            for (var i=0; i<actualCount; i++) {
+                var conf = document.createElement('div');
+                conf.className = 'confetti';
+                var size = (Math.random()*12 + 6);
+                var color = colors[Math.floor(Math.random()*colors.length)];
+                
+                // Explicitly set spawn at top of screen
+                conf.style.left = (Math.random()*100) + 'vw'; 
+                conf.style.width = size + 'px'; 
+                conf.style.height = size + 'px'; 
+                conf.style.background = color; 
+                conf.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+                conf.style.animationDuration = (1.5 + Math.random()*2.5) + 's';
+                conf.style.animationDelay = (Math.random()*1.5) + 's';
+                conf.style.boxShadow = '0 0 10px '+color;
+                
+                document.body.appendChild(conf);
+                (function(el){setTimeout(function(){el.remove()}, 5000)})(conf);
+            }
+
+            if(mega) {
+                for (var j=0; j<25; j++) {
+                    var sx=Math.random()*100, sy=Math.random()*100;
+                    for (var k=0; k<40; k++) {
+                        var fw=document.createElement('div');
+                        var ang=Math.random()*Math.PI*2, dist=400+Math.random()*500, col=colors[Math.floor(Math.random()*colors.length)];
+                        fw.className='firework'; fw.style.left=sx+'vw'; fw.style.top=sy+'vh'; fw.style.background=col;
+                        fw.style.boxShadow='0 0 30px '+col+', 0 0 60px white';
+                        fw.style.setProperty('--x', Math.cos(ang)*dist+'px'); fw.style.setProperty('--y', Math.sin(ang)*dist+'px');
+                        document.body.appendChild(fw);
+                        (function(el){setTimeout(function(){el.remove()},1200)})(fw);
+                    }
+                }
+            }
+        }
+
+        document.body.addEventListener('click', function() {
+            var now = Date.now();
+            if (now - lastTap < 350) { tapCount++; } else { tapCount = 1; toggle(); }
+            lastTap = now;
+            if (tapCount >= 3) spawn(200, true);
+        });
+    </script>
+</body>
+</html>
